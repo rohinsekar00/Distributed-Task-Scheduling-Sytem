@@ -1,0 +1,182 @@
+spring:
+  application:
+    name: distributed-task-scheduler
+  
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/taskscheduler
+    username: postgres
+    password: post
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        linger.ms: 10
+        batch.size: 16384
+    consumer:
+      group-id: task-worker-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "*"
+        max.poll.records: 10
+        max.poll.interval.ms: 300000
+    listener:
+      ack-mode: manual
+      concurrency: 3
+  
+  # Redis Configuration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 60000
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+
+# Redisson Configuration
+redisson:
+  config: |
+    singleServerConfig:
+      address: "redis://localhost:6379"
+      connectionPoolSize: 20
+      connectionMinimumIdleSize: 5
+
+# Task Scheduler Configuration
+task-scheduler:
+  # Worker Configuration
+  worker:
+    enabled: false  # Set to true for worker instances
+    id: ${WORKER_ID:worker-${random.uuid}}
+    heartbeat-interval-ms: 5000
+    task-timeout-ms: 300000  # 5 minutes
+    max-concurrent-tasks: 10
+  
+  # Scheduler Configuration
+  scheduler:
+    enabled: true  # Set to false for worker-only instances
+    task-assignment-interval-ms: 1000
+    worker-health-check-interval-ms: 10000
+    dead-worker-timeout-ms: 30000
+  
+  # Retry Configuration
+  retry:
+    max-attempts: 3
+    initial-interval-ms: 1000
+    multiplier: 2.0
+    max-interval-ms: 60000
+  
+  # Task Queue Configuration
+  queue:
+    topic: task-queue
+    partitions: 10
+    replication-factor: 1
+    dead-letter-topic: task-queue-dlq
+  
+  # Lock Configuration
+  lock:
+    wait-time-ms: 5000
+    lease-time-ms: 30000
+
+# Management & Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    metrics:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.faang.taskscheduler: DEBUG
+    org.springframework.kafka: INFO
+    org.hibernate.SQL: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/task-scheduler.log
+
+# Server Configuration
+server:
+  port: 8080
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+
+---
+# Worker Profile
+spring:
+  config:
+    activate:
+      on-profile: worker
+
+server:
+  port: 0  # Random port for workers
+
+task-scheduler:
+  worker:
+    enabled: true
+  scheduler:
+    enabled: false
+
+---
+# Scheduler Profile
+spring:
+  config:
+    activate:
+      on-profile: scheduler
+
+server:
+  port: 8080
+
+task-scheduler:
+  worker:
+    enabled: false
+  scheduler:
+    enabled: true
