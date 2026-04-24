@@ -4,7 +4,7 @@ A production-grade distributed task execution engine that processes thousands of
 
 ## 🎯 Project Overview
 
-This system demonstrates FAANG-level distributed systems architecture by implementing:
+This system demonstrates  distributed systems architecture by implementing:
 
 - **DAG-based Task Scheduling**: Define complex workflows with task dependencies
 - **Distributed Message Queue**: Kafka for reliable task distribution
